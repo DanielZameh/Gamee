@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Truth or Dare - Doodle Party</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.5/babel.min.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import { getDatabase, ref, onValue, set, update } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+    import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBavgREhXJj9GZgYBO5MmyZ4r9WpURaZTM",
+      authDomain: "truth-or-dare-1fdff.firebaseapp.com",
+      projectId: "truth-or-dare-1fdff",
+      storageBucket: "truth-or-dare-1fdff.firebasestorage.app",
+      messagingSenderId: "892793447282",
+      appId: "1:892793447282:web:505cba5d54beb7cfa8b3eb",
+      measurementId: "G-8DJC2C4EZ4"
+    };
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      const auth = getAuth(app);
+
+      // Expose Firebase functions globally
+      window.firebaseDb = db;
+      window.firebaseAuth = auth;
+      window.firebaseRef = ref;
+      window.firebaseOnValue = onValue;
+      window.firebaseSet = set;
+      window.firebaseUpdate = update;
+      window.firebaseSignInAnonymously = signInAnonymously;
+    } catch (error) {
+      console.error('Firebase initialization failed:', error);
+      window.firebaseInitError = error.message;
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Schoolbell&family=Comic+Sans+MS:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Schoolbell', cursive;
+      background: url('https://www.transparenttextures.com/patterns/doodle-pattern.png'), #ffebef;
+      background-size: cover;
+      color: #333;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(2deg); }
+      75% { transform: rotate(-2deg); }
+    }
+    .bounce {
+      animation: bounce 0.4s ease infinite;
+    }
+    .wiggle {
+      animation: wiggle 0.3s ease infinite;
+    }
+    .cartoon-button {
+      background: linear-gradient(45deg, #ff69b4, #00ff7f);
+      border: 3px solid #333;
+      border-radius: 15px;
+      box-shadow: 0 5px #222;
+      transition: all 0.2s;
+      font-family: 'Comic Sans MS', cursive;
+    }
+    .cartoon-button:hover {
+      transform: scale(1.1);
+      box-shadow: 0 3px #222;
+    }
+    .cartoon-button:active {
+      transform: translateY(2px);
+      box-shadow: 0 1px #222;
+    }
+    .doodle-border {
+      border: 3px solid #333;
+      border-radius: 15px;
+      background: #fffacd;
+      box-shadow: 0 6px #222;
+    }
+    .cartoon-text {
+      text-shadow: 1px 1px #fff;
+    }
+    .error-text {
+      color: #ff0000;
+      font-family: 'Comic Sans MS', cursive;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center text-center">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Error Boundary Component
+    class ErrorBoundary extends React.Component {
+      state = { error: null };
+      static getDerivedStateFromError(error) {
+        return { error: error.message };
+      }
+      render() {
+        if (this.state.error) {
+          return (
+            <div className="text-center">
+              <p className="text-lg error-text">Oops! Something broke: {this.state.error}</p>
+              <p className="text-lg error-text">Please check Firebase setup or refresh the page.</p>
+            </div>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
+    const challenges = {
+      en: [
+        "Act like a cat for 2 minutes, meowing and stretching.",
+        "Speak in a pirate accent for the next 3 turns.",
+        "Give a dramatic compliment to someone with a straight face.",
+        "Sing the chorus of your favorite cartoon theme song.",
+        "Do 10 jumping jacks and finish with a superhero pose."
+      ],
+      ar: [
+        "قلد قطة لمدة دقيقتين مع المواء والتمدد.",
+        "اتكلم بلهجة قرصان لمدة 3 جولات.",
+        "اعطي مدح مسرحي لواحد من اللاعبين بدون ما تضحك.",
+        "غني جزء من أغنية كرتونية بتحبها.",
+        "اعمل 10 قفزات رياضية واختمها بوضعية بطل خارق."
+      ]
+    };
+
+    const truths = {
+      en: [
+        "What’s the most embarrassing thing you’ve done to impress someone?",
+        "Who in this room would you pick to be your game show partner?",
+        "What’s a silly secret you’ve never shared with this group?",
+        "What’s the strangest food combo you’ve ever tried?",
+        "What’s the worst gift you’ve ever gotten and who gave it to you?"
+      ],
+      ar: [
+        "إيه أكتر موقف محرج عملته عشان تعجب حد؟",
+        "مين في الأوضة تختاره يكون شريكك في برنامج مسابقات؟",
+        "إيه سر مضحك عمرك ما قلتله للمجموعة دي؟",
+        "إيه أغرب مزيج أكل جربته؟",
+        "إيه أسوأ هدية خدتها ومين اللي اداها لك؟"
+      ]
+    };
+
+    const App = () => {
+      const [language, setLanguage] = useState(null);
+      const [playerName, setPlayerName] = useState('');
+      const [gameState, setGameState] = useState('language');
+      const [party, setParty] = useState({ owner: '', players: [], gameState: 'waiting' });
+      const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
+      const [currentChallenge, setCurrentChallenge] = useState('');
+      const [currentTruth, setCurrentTruth] = useState('');
+      const [partyOwnerName, setPartyOwnerName] = useState('');
+      const [notification, setNotification] = useState('');
+      const [error, setError] = useState(window.firebaseInitError || '');
+      const [userId, setUserId] = useState(null);
+      const [isLoading, setIsLoading] = useState(true);
+
+      const translations = {
+        en: {
+          title: "Truth or Dare Doodle Party",
+          chooseLang: "Choose Language",
+          enterName: "Enter Your Name",
+          submitName: "Choose as Name",
+          createParty: "Create Party",
+          joinParty: "Join Party",
+          enterOwner: "Enter Party Owner's Name",
+          waiting: "Waiting for Players...",
+          startGame: "Start Game",
+          truth: "Truth",
+          dare: "Dare",
+          completeChallenge: "Complete Challenge",
+          partyVibe: "Join the wildest cartoon party ever!",
+          error: {
+            emptyName: "Please enter a name!",
+            partyNotFound: "Party not found!",
+            nameTaken: "This name is already taken in the party!",
+            firebaseError: "Firebase error. Check setup at https://console.firebase.google.com.",
+            loading: "Loading..."
+          }
+        },
+        ar: {
+          title: "الحقيقة أو الجرأة",
+          chooseLang: "اختر اللغة",
+          enterName: "ادخل اسمك",
+          submitName: "اختار كاسم",
+          createParty: "إنشاء حفلة",
+          joinParty: "انضم لحفلة",
+          enterOwner: "ادخل اسم صاحب الحفلة",
+          waiting: "في انتظار اللاعبين...",
+          startGame: "ابدأ اللعبة",
+          truth: "حقيقة",
+          dare: "جرأة",
+          completeChallenge: "إكمال التحدي",
+          partyVibe: "انضم لأمتع حفلة كرتونية!",
+          error: {
+            emptyName: "من فضلك ادخل اسم!",
+            partyNotFound: "الحفلة غير موجودة!",
+            nameTaken: "الاسم ده متاخد في الحفلة!",
+            firebaseError: "خطأ في Firebase، تحقق من الإعداد في https://console.firebase.google.com.",
+            loading: "جاري التحميل..."
+          }
+        }
+      };
+
+      const playSound = () => {
+        const audio = new Audio('https://freesound.org/data/previews/316/316847_4939433-lq.mp3');
+        audio.play().catch(() => console.log('Audio playback failed'));
+      };
+
+      useEffect(() => {
+        // Authenticate anonymously
+        setIsLoading(true);
+        if (!window.firebaseSignInAnonymously || !window.firebaseAuth) {
+          setError('Firebase Authentication not initialized. Check setup at https://console.firebase.google.com.');
+          setIsLoading(false);
+          return;
+        }
+        window.firebaseSignInAnonymously(window.firebaseAuth)
+          .then((user) => {
+            setUserId(user.user.uid);
+            setIsLoading(false);
+          })
+          .catch((err) => {
+            setError(translations[language]?.error.firebaseError || `Firebase error: ${err.message}`);
+            setIsLoading(false);
+          });
+
+        // Sync party data
+        if (gameState === 'waiting' || gameState === 'playing') {
+          if (!party.owner || !window.firebaseDb || !window.firebaseRef) {
+            setError('Firebase Database not initialized. Check setup.');
+            return;
+          }
+          const partyRef = window.firebaseRef(window.firebaseDb, `parties/${party.owner}`);
+          const unsubscribe = window.firebaseOnValue(partyRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+              setParty(data);
+              setCurrentPlayerIndex(data.currentPlayerIndex || 0);
+              setCurrentChallenge(data.currentChallenge || '');
+              setCurrentTruth(data.currentTruth || '');
+              setNotification(data.notification || '');
+              setGameState(data.gameState || 'waiting');
+            }
+          }, (err) => {
+            setError(translations[language]?.error.firebaseError || `Firebase error: ${err.message}`);
+          });
+          return () => unsubscribe();
+        }
+      }, [gameState, party.owner, language]);
+
+      const selectLanguage = (lang) => {
+        setLanguage(lang);
+        setGameState('name');
+      };
+
+      const submitName = () => {
+        if (!playerName.trim()) {
+          setError(translations[language]?.error.emptyName || 'Please enter a name!');
+          return;
+        }
+        setGameState('party');
+        setError('');
+      };
+
+      const createParty = () => {
+        console.log('Create Party clicked for:', playerName);
+        if (!window.firebaseDb || !window.firebaseRef || !window.firebaseUpdate) {
+          setError('Firebase not initialized. Check setup.');
+          return;
+        }
+        const partyData = {
+          owner: playerName,
+          players: [playerName],
+          gameState: 'waiting',
+          currentPlayerIndex: 0,
+          notification: `${playerName} created a party!`
+        };
+        const partyRef = window.firebaseRef(window.firebaseDb, `parties/${playerName}`);
+        window.firebaseUpdate(partyRef, partyData)
+          .then(() => {
+            console.log('Party created successfully:', partyData);
+            setParty(partyData);
+            setGameState('waiting');
+            setError('');
+          })
+          .catch((err) => {
+            console.error('Create party failed:', err);
+            setError(translations[language]?.error.firebaseError || `Failed to create party: ${err.message}`);
+          });
+      };
+
+      const joinParty = () => {
+        console.log('Join Party clicked for owner:', partyOwnerName, 'by:', playerName);
+        if (!partyOwnerName.trim()) {
+          setError(translations[language]?.error.emptyName || 'Please enter a name!');
+          return;
+        }
+        if (!window.firebaseDb || !window.firebaseRef || !window.firebaseOnValue || !window.firebaseUpdate) {
+          setError('Firebase not initialized. Check setup.');
+          return;
+        }
+        const partyRef = window.firebaseRef(window.firebaseDb, `parties/${partyOwnerName}`);
+        window.firebaseOnValue(partyRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            if (data.players.includes(playerName)) {
+              setError(translations[language]?.error.nameTaken || 'This name is already taken in the party!');
+              return;
+            }
+            const updatedPlayers = [...data.players, playerName];
+            window.firebaseUpdate(partyRef, {
+              players: updatedPlayers,
+              notification: `${playerName} joined ${partyOwnerName}'s party!`
+            }).then(() => {
+              console.log('Joined party successfully:', { ...data, players: updatedPlayers });
+              setParty({ ...data, players: updatedPlayers });
+              setGameState('waiting');
+              setError('');
+            }).catch((err) => {
+              console.error('Join party failed:', err);
+              setError(translations[language]?.error.firebaseError || `Failed to join party: ${err.message}`);
+            });
+          } else {
+            setError(translations[language]?.error.partyNotFound || 'Party not found!');
+          }
+        }, { onlyOnce: true });
+      };
+
+      const startGame = () => {
+        if (!window.firebaseDb || !window.firebaseRef || !window.firebaseUpdate) {
+          setError('Firebase not initialized. Check setup.');
+          return;
+        }
+        const partyRef = window.firebaseRef(window.firebaseDb, `parties/${party.owner}`);
+        window.firebaseUpdate(partyRef, { gameState: 'playing' })
+          .then(() => selectRandomChallenge())
+          .catch((err) => setError(translations[language]?.error.firebaseError || `Firebase error: ${err.message}`));
+      };
+
+      const selectRandomChallenge = () => {
+        if (!language || !challenges[language] || !truths[language]) return;
+        const randomChallenge = challenges[language][Math.floor(Math.random() * challenges[language].length)];
+        const randomTruth = truths[language][Math.floor(Math.random() * truths[language].length)];
+        const partyRef = window.firebaseRef(window.firebaseDb, `parties/${party.owner}`);
+        window.firebaseUpdate(partyRef, {
+          currentChallenge: randomChallenge,
+          currentTruth: randomTruth,
+          notification: `${party.players[currentPlayerIndex]}'s turn`
+        }).catch((err) => setError(translations[language]?.error.firebaseError || `Firebase error: ${err.message}`));
+        playSound();
+      };
+
+      const chooseTruth = () => {
+        const partyRef = window.firebaseRef(window.firebaseDb, `parties/${party.owner}`);
+        window.firebaseUpdate(partyRef, {
+          currentChallenge: '',
+          notification: `${party.players[currentPlayerIndex]} picked Truth: ${currentTruth}`
+        }).catch((err) => setError(translations[language]?.error.firebaseError || `Firebase error: ${err.message}`));
+        playSound();
+      };
+
+      const chooseDare = () => {
+        const partyRef = window.firebaseRef(window.firebaseDb, `parties/${party.owner}`);
+        window.firebaseUpdate(partyRef, {
+          currentTruth: '',
+          notification: `${party.players[currentPlayerIndex]} picked Dare: ${currentChallenge}`
+        }).catch((err) => setError(translations[language]?.error.firebaseError || `Firebase error: ${err.message}`));
+        playSound();
+      };
+
+      const completeChallenge = () => {
+        const nextIndex = (currentPlayerIndex + 1) % party.players.length;
+        const partyRef = window.firebaseRef(window.firebaseDb, `parties/${party.owner}`);
+        window.firebaseUpdate(partyRef, {
+          currentPlayerIndex: nextIndex,
+          currentChallenge: '',
+          currentTruth: '',
+          notification: `${party.players[nextIndex]}'s turn`
+        }).then(() => selectRandomChallenge())
+          .catch((err) => setError(translations[language]?.error.firebaseError || `Firebase error: ${err.message}`));
+      };
+
+      return (
+        <div className="container mx-auto p-4">
+          <h1 className="text-4xl font-bold mb-6 text-pink-600 cartoon-text">{translations[language]?.title || "Truth or Dare Doodle Party"}</h1>
+          <p className="text-lg mb-4 text-purple-600 cartoon-text">{translations[language]?.partyVibe || "Join the wildest cartoon party ever!"}</p>
+          {isLoading && <p className="text-lg text-blue-600 cartoon-text">{translations[language]?.error.loading || "Loading..."}</p>}
+          {error && <p className="text-lg error-text">{error}</p>}
+
+          {gameState === 'language' && (
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => selectLanguage('en')}
+                className="cartoon-button p-4 text-xl text-white wiggle"
+              >
+                English
+              </button>
+              <button
+                onClick={() => selectLanguage('ar')}
+                className="cartoon-button p-4 text-xl text-white wiggle"
+              >
+                العربية
+              </button>
+            </div>
+          )}
+
+          {gameState === 'name' && (
+            <div className="doodle-border max-w-md mx-auto">
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder={translations[language].enterName}
+                className="p-2 rounded-md border-2 border-black w-full mb-4 font-comic"
+              />
+              <button
+                onClick={submitName}
+                className="cartoon-button p-3 text-white w-full"
+                disabled={isLoading}
+              >
+                {translations[language].submitName}
+              </button>
+            </div>
+          )}
+
+          {gameState === 'party' && (
+            <div className="doodle-border max-w-md mx-auto">
+              <button
+                onClick={createParty}
+                className="cartoon-button p-3 text-white w-full mb-4"
+              >
+                {translations[language].createParty}
+              </button>
+              <input
+                type="text"
+                value={partyOwnerName}
+                onChange={(e) => setPartyOwnerName(e.target.value)}
+                placeholder={translations[language].enterOwner}
+                className="p-2 rounded-md border-2 border-black w-full mb-4 font-comic"
+              />
+              <button
+                onClick={joinParty}
+                className="cartoon-button p-3 text-white w-full"
+              >
+                {translations[language].joinParty}
+              </button>
+            </div>
+          )}
+
+          {gameState === 'waiting' && (
+            <div className="doodle-border max-w-md mx-auto">
+              <h2 className="text-2xl text-blue-600 cartoon-text">{translations[language].waiting}</h2>
+              <p className="text-lg">Party Owner: {party.owner}</p>
+              <p className="text-lg">Players: {party.players.join(', ')}</p>
+              {party.owner === playerName && (
+                <button
+                  onClick={startGame}
+                  className="cartoon-button p-3 text-white w-full mt-4"
+                  disabled={party.players.length < 2}
+                >
+                  {translations[language].startGame}
+                </button>
+              )}
+            </div>
+          )}
+
+          {gameState === 'playing' && (
+            <div className="doodle-border max-w-md mx-auto">
+              <h2 className="text-2xl text-green-600 cartoon-text">{party.players[currentPlayerIndex]}'s Turn</h2>
+              {notification && <p className="text-lg text-purple-600 cartoon-text">{notification}</p>}
+              <div className="flex justify-center gap-4 mt-4">
+                <button
+                  onClick={chooseTruth}
+                  className="cartoon-button p-3 text-white bounce"
+                  disabled={isLoading || party.players[currentPlayerIndex] !== playerName}
+                >
+                  {translations[language].truth}
+                </button>
+                <button
+                  onClick={chooseDare}
+                  className="cartoon-button p-3 text-white bounce"
+                  disabled={isLoading || party.players[currentPlayerIndex] !== playerName}
+                >
+                  {translations[language].dare}
+                </button>
+              </div>
+              {(currentChallenge || currentTruth) && (
+                <div className="p-6 bg-yellow-300 rounded-lg mt-4">
+                  <p className="text-xl font-semibold cartoon-text">{currentChallenge || currentTruth}</p>
+                </div>
+              )}
+              <button
+                onClick={completeChallenge}
+                className="cartoon-button p-3 text-white w-full mt-4"
+                disabled={isLoading || party.players[currentPlayerIndex] !== playerName}
+              >
+                {translations[language].completeChallenge}
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    );
+  </script>
+</body>
+</html>
